@@ -2,7 +2,7 @@ package sxr
 
 import sbt._
 
-trait Writer extends BasicScalaProject {
+trait Write extends BasicScalaProject {
   def sxr_version = "0.2.4"
   val sxr = "org.scala-tools.sxr" %% "sxr" % sxr_version % "sxr->default(compile)"
   def sxrMainPath = outputPath / "classes.sxr"
@@ -10,13 +10,18 @@ trait Writer extends BasicScalaProject {
 
   val sxrConf = Configurations.config("sxr")
   def sxrFinder = configurationPath(sxrConf) * "*"
-  protected def sxrOption = sxrFinder.get.map { path => 
-    new CompileOption("-Xplugin:" + path.absolutePath)
+  protected def sxrOption = sxrFinder.get.filter { f => sxrEnabled } map { p =>
+    new CompileOption("-Xplugin:" + p.absolutePath)
   } toList
   abstract override def compileOptions = sxrOption ++ super.compileOptions
+  private var sxrEnabled = false
+  def setSxr(b: Boolean) = task { sxrEnabled = b; None }
+
+  lazy val writeSxr = writeSxrAction
+  def writeSxrAction = setSxr(true) && clean && compile && setSxr(false)
 }
 
-trait Publish extends Writer {
+trait Publish extends Write {
   def sxrOrg = organization
   def sxrSecret = getSxrProperty(sxrOrg)
 
