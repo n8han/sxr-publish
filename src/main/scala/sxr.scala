@@ -28,7 +28,7 @@ trait Publish extends Write {
   lazy val publishSxr = publishSxrAction
   def publishSxrAction = task { credentialReqs orElse {
     None
-  } } dependsOn compile
+  } } dependsOn writeSxr
 
 
   def sxrCredentialsPath = Path.userHome / ".sxr_publish"
