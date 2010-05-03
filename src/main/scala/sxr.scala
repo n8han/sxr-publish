@@ -2,12 +2,21 @@ package sxr
 
 import sbt._
 
-trait Publish extends BasicScalaProject with AutoCompilerPlugins {
+trait Writer extends BasicScalaProject {
   def sxr_version = "0.2.4"
-  val sxr = compilerPlugin("org.scala-tools.sxr" %% "sxr" % sxr_version)
+  val sxr = "org.scala-tools.sxr" %% "sxr" % sxr_version % "sxr->default(compile)"
   def sxrMainPath = outputPath / "classes.sxr"
   def sxrTestPath = outputPath / "test-classes.sxr"
 
+  val sxrConf = Configurations.config("sxr")
+  def sxrFinder = configurationPath(sxrConf) * "*"
+  protected def sxrOption = sxrFinder.get.map { path => 
+    new CompileOption("-Xplugin:" + path.absolutePath)
+  } toList
+  abstract override def compileOptions = sxrOption ++ super.compileOptions
+}
+
+trait Publish extends Writer {
   def sxrOrg = organization
   def sxrSecret = getSxrProperty(sxrOrg)
 
@@ -36,5 +45,4 @@ trait Publish extends BasicScalaProject with AutoCompilerPlugins {
     Some(str) filter { _ == "" } map { str =>
       "Missing value %s in %s" format (title, path)
     }
-    
 }
