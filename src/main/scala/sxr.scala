@@ -1,7 +1,10 @@
 package sxr
 
 import sbt._
+import dispatch._
 import java.net.URI
+import javax.crypto
+import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
   def sxr_version = "0.2.4"
@@ -30,6 +33,8 @@ trait Write extends BasicScalaProject {
 
 trait Publish extends Write {
   def sxrOrg = organization
+  def sxrName = normalizedName
+  def sxrVersion = version.toString
   def sxrSecret = getSxrProperty(sxrOrg)
 
   lazy val previewSxr = previewSxrAction
@@ -37,9 +42,31 @@ trait Publish extends Write {
     tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
   } dependsOn writeSxr
 
+  lazy private val http = new dispatch.Http
+  def sxrHost = :/("localhost", 8080)
+  def publish(path: Path): Option[String] = try {
+    log.info("Publishing " + path)
+    val SHA1 = "HmacSHA1";
+    implicit def str2bytes(str: String) = str.getBytes("utf8")
+    val key = new crypto.spec.SecretKeySpec(sxrSecret, SHA1)
+    val target = sxrHost / sxrOrg / sxrName / sxrVersion / path.name
+    val mac = crypto.Mac.getInstance(SHA1)
+    mac.init(key)
+    mac.update(target.to_uri.toString)
+    scala.io.Source.fromFile(path.asFile).getLines foreach { l =>
+      mac.update(l)
+    }
+    val sig = new String(encodeBase64(mac.doFinal()))
+    http(target <<? Map("sig" -> sig) <<< path.asFile >|)
+    None
+  } catch { case e => Some(e.getMessage) }
+
   lazy val publishSxr = publishSxrAction
   def publishSxrAction = task { credentialReqs orElse {
-    None
+    val none: Option[String] = None
+    (none /: descendents(sxrMainPath, "*.html").get) { (last, cur) =>
+      last orElse publish(cur)
+    }
   } } dependsOn writeSxr
 
 
