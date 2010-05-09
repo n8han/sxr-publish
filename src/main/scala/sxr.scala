@@ -64,7 +64,8 @@ trait Publish extends Write {
   lazy val publishSxr = publishSxrAction
   def publishSxrAction = task { credentialReqs orElse {
     val none: Option[String] = None
-    (none /: descendents(sxrMainPath, "*.html").get) { (last, cur) =>
+    val sources = descendents(sxrMainPath, "*.html") +++ descendents(sxrMainPath, "*.js")
+    (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
     }
   } } dependsOn writeSxr
