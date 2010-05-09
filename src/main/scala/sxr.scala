@@ -7,8 +7,8 @@ import javax.crypto
 import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
-  def sxr_version = "0.2.4"
-  val sxr = "org.scala-tools.sxr" %% "sxr" % sxr_version % "sxr->default(compile)"
+  lazy val sxr = sxr_artifact % "sxr->default(compile)"
+  def sxr_artifact = "unofficial.sxr" %% "sxr" % "0.2.4.u1"
   def sxrMainPath = outputPath / "classes.sxr"
   def indexFile(p: Path) = p / "index.html"
   def sxrTestPath = outputPath / "test-classes.sxr"
@@ -46,7 +46,7 @@ trait Publish extends Write {
   def sxrHost = :/("localhost", 8080)
   def publish(path: Path): Option[String] = try {
     log.info("Publishing " + path)
-    val SHA1 = "HmacSHA1";
+    val SHA1 = "HmacSHA1"
     implicit def str2bytes(str: String) = str.getBytes("utf8")
     val key = new crypto.spec.SecretKeySpec(sxrSecret, SHA1)
     val target = sxrHost / sxrOrg / sxrName / sxrVersion / path.name
@@ -57,7 +57,7 @@ trait Publish extends Write {
       mac.update(l)
     }
     val sig = new String(encodeBase64(mac.doFinal()))
-    http(target <<? Map("sig" -> sig) <<< path.asFile >|)
+    http(target <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
     None
   } catch { case e => Some(e.getMessage) }
 
