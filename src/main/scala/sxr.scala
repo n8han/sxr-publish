@@ -43,7 +43,7 @@ trait Publish extends Write {
   } dependsOn writeSxr
 
   lazy private val http = new dispatch.Http
-  def sxrHost = :/("localhost", 8080)
+  def sxrHost = :/("sourced.implicit.ly")
   def sxrPublishPath = sxrHost / sxrOrg / sxrName / sxrVersion
   def publish(path: Path): Option[String] = try {
     log.info("Publishing " + path)
