@@ -43,8 +43,12 @@ trait Publish extends Write {
   } dependsOn writeSxr
 
   lazy private val http = new dispatch.Http
-  def sxrHost = :/("sourced.implicit.ly")
+
+  def sxrHostname = "sourced.implicit.ly"
+  def sxrHost = :/(sxrHostname)
+  def sxrCredentialsPath = Path.userHome / ("." + sxrHostname)
   def sxrPublishPath = sxrHost / sxrOrg / sxrName / sxrVersion
+
   def publish(path: Path): Option[String] = try {
     log.info("Publishing " + path)
     val SHA1 = "HmacSHA1"
@@ -75,7 +79,6 @@ trait Publish extends Write {
   } } dependsOn writeSxr
 
 
-  def sxrCredentialsPath = Path.userHome / ".sxr_publish"
   private def getSxrProperty(name: String) = {
     val props = new java.util.Properties
     FileUtilities.readStream(sxrCredentialsPath.asFile, log){ input => props.load(input); None }
