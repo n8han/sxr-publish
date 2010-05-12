@@ -10,7 +10,7 @@ trait Write extends BasicScalaProject {
   lazy val sxr = sxr_artifact % "sxr->default(compile)"
   def sxr_artifact = "unofficial.sxr" %% "sxr" % "0.2.4.u1"
   def sxrMainPath = outputPath / "classes.sxr"
-  def indexFile(p: Path) = p / "index.html"
+  def indexFile[T](p: { def / (f: String): T }) = p / "index.html"
   def sxrTestPath = outputPath / "test-classes.sxr"
 
   val sxrConf = Configurations.config("sxr")
@@ -44,20 +44,21 @@ trait Publish extends Write {
 
   lazy private val http = new dispatch.Http
   def sxrHost = :/("localhost", 8080)
+  def sxrPublishPath = sxrHost / sxrOrg / sxrName / sxrVersion
   def publish(path: Path): Option[String] = try {
     log.info("Publishing " + path)
     val SHA1 = "HmacSHA1"
     implicit def str2bytes(str: String) = str.getBytes("utf8")
     val key = new crypto.spec.SecretKeySpec(sxrSecret, SHA1)
-    val target = sxrHost / sxrOrg / sxrName / sxrVersion / path.name
     val mac = crypto.Mac.getInstance(SHA1)
     mac.init(key)
-    mac.update(target.to_uri.toString)
+    val filePath = sxrPublishPath / path.name
+    mac.update(filePath.to_uri.toString)
     scala.io.Source.fromFile(path.asFile).getLines foreach { l =>
       mac.update(l)
     }
     val sig = new String(encodeBase64(mac.doFinal()))
-    http(target <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
+    http(filePath <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
     None
   } catch { case e => Some(e.getMessage) }
 
@@ -68,6 +69,8 @@ trait Publish extends Write {
     val sources = exts map { e => descendents(sxrMainPath, "*." + e) } reduceLeft { _ +++ _ }
     (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
+    } orElse {
+      tryBrowse(indexFile(sxrPublishPath).to_uri, true)
     }
   } } dependsOn writeSxr
 
