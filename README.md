@@ -33,4 +33,4 @@ Before publishing your sources, you may preview them locally with the `preview-s
 Administration
 --------------
 
-Please contact me, n8han, or softprops through github or email to request a secret for one or more organizations. If we aren't going to know who you are immediately, please give us some way to verify that you are indeed responsible for the organization name.
+Contact n8han or softprops through github or email to request a secret for one or more organizations. If we aren't going to know who you are immediately, please give us some way to verify that you are indeed responsible for the organization name.

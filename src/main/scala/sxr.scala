@@ -7,21 +7,31 @@ import javax.crypto
 import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
-  lazy val sxr = sxr_artifact % "sxr->default(compile)"
+  /** Override to define a particular sxr artifact */
   def sxr_artifact = "unofficial.sxr" %% "sxr" % "0.2.4.u1"
+  /** Artifact assigned to a custom configuration */
+  lazy val sxr = sxr_artifact % "sxr->default(compile)"
+  /** Output path of the compiler plugin, does not control the path but should reflect it */
   def sxrMainPath = outputPath / "classes.sxr"
+  /** @return index.html file nested under the given path */
   def indexFile[T](p: { def / (f: String): T }) = p / "index.html"
+  /** Output path of the compiler plugin's test sources, not currently used */
   def sxrTestPath = outputPath / "test-classes.sxr"
 
+  /** Custom sxr configuration, so that sxr is not on the regular compile path */
   val sxrConf = Configurations.config("sxr")
+  /** All files in the sxr configuration, should just be the one jar */
   def sxrFinder = configurationPath(sxrConf) * "*"
+  /** Returns sxr as a compiler option only if sxrEnabled is set to true */
   protected def sxrOption = sxrFinder.get.filter { f => sxrEnabled } map { p =>
     new CompileOption("-Xplugin:" + p.absolutePath)
   } toList
+  /** Adds in whatever is returned by sxrOption */
   abstract override def compileOptions = sxrOption ++ super.compileOptions
+  /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
   private var sxrEnabled = false
 
-  lazy val writeSxr = writeSxrAction
+  lazy val writeSxr = writeSxrAction describedAs "Clean and re-compile with the sxr plugin enabled, writes annotated sources"
   def writeSxrAction = fileTask(sxrMainPath from mainSources) {
     sxrEnabled = true
     clean.run orElse compile.run orElse {
@@ -32,23 +42,33 @@ trait Write extends BasicScalaProject {
 }
 
 trait Publish extends Write {
+  /** Organization we'll attempt to publish to, defaults to `organization` */
   def sxrOrg = organization
+  /** Project name to publish, defaults to normalizedName */
   def sxrName = normalizedName
+  /** Version string to publish, defaults to version.toString */
   def sxrVersion = version.toString
+  /** Secret for the sxrOrg, defaults to property defined in the host config file */
   def sxrSecret = getSxrProperty(sxrOrg)
 
-  lazy val previewSxr = previewSxrAction
+  lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
   def previewSxrAction = task { 
     tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
   } dependsOn writeSxr
 
+  /** Dispatch Http instance to be used when publishing */
   lazy private val http = new dispatch.Http
 
+  /** Publishing target host, defaults to "sourced.implicit.ly" */
   def sxrHostname = "sourced.implicit.ly"
+  /** Defaults to sxrHostname on port 80 */
   def sxrHost = :/(sxrHostname)
+  /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
   def sxrCredentialsPath = Path.userHome / ("." + sxrHostname)
+  /** Target path on the server */
   def sxrPublishPath = sxrHost / sxrOrg / sxrName / sxrVersion
 
+  /** Publish to the given path, returns None if successful, or Some(errorstring) */
   def publish(path: Path): Option[String] = try {
     log.info("Publishing " + path)
     val SHA1 = "HmacSHA1"
@@ -66,7 +86,7 @@ trait Publish extends Write {
     None
   } catch { case e => Some(e.getMessage) }
 
-  lazy val publishSxr = publishSxrAction
+  lazy val publishSxr = publishSxrAction describedAs "Publish annotated, versioned project sources to %s".format(sxrHostname)
   def publishSxrAction = task { credentialReqs orElse {
     val none: Option[String] = None
     val exts = "html" :: "js" :: "css" :: Nil
@@ -78,7 +98,7 @@ trait Publish extends Write {
     }
   } } dependsOn writeSxr
 
-
+  /** Return property from sxrCredentialsPath */
   private def getSxrProperty(name: String) = {
     val props = new java.util.Properties
     FileUtilities.readStream(sxrCredentialsPath.asFile, log){ input => props.load(input); None }
