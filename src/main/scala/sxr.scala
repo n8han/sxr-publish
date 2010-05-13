@@ -53,7 +53,7 @@ trait Publish extends Write {
 
   lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
   def previewSxrAction = task { 
-    tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
+    Publish.tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
   } dependsOn writeSxr
 
   /** Dispatch Http instance to be used when publishing */
@@ -87,14 +87,14 @@ trait Publish extends Write {
   } catch { case e => Some(e.getMessage) }
 
   lazy val publishSxr = publishSxrAction describedAs "Publish annotated, versioned project sources to %s".format(sxrHostname)
-  def publishSxrAction = task { credentialReqs orElse {
+  def publishSxrAction = task { sxrCredentialReqs orElse {
     val none: Option[String] = None
     val exts = "html" :: "js" :: "css" :: Nil
     val sources = exts map { e => descendents(sxrMainPath, "*." + e) } reduceLeft { _ +++ _ }
     (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
     } orElse {
-      tryBrowse(indexFile(sxrPublishPath).to_uri, true)
+      Publish.tryBrowse(indexFile(sxrPublishPath).to_uri, true)
     }
   } } dependsOn writeSxr
 
@@ -105,20 +105,22 @@ trait Publish extends Write {
     props.getProperty(name, "")
   }
 
-  def credentialReqs = ( missing(sxrCredentialsPath, "credentials file")
-    ) orElse { missing(sxrSecret, sxrCredentialsPath, "%s secret" format sxrOrg) }
+  def sxrCredentialReqs = ( Publish.missing(sxrCredentialsPath, "credentials file")
+    ) orElse { Publish.missing(sxrSecret, sxrCredentialsPath, "%s secret" format sxrOrg) }
+}
 
-  def missing(path: Path, title: String) =
+object Publish {
+  private def missing(path: Path, title: String) =
     Some(path) filter (!_.exists) map { ne =>
       "Missing %s, expected in %s" format (title, path)
     }
 
-  def missing(str: String, path: Path, title: String) = 
+  private def missing(str: String, path: Path, title: String) = 
     Some(str) filter { _ == "" } map { str =>
       "Missing value %s in %s" format (title, path)
     }
   /** Opens uri in a browser if on a JVM 1.6+ */
-  def tryBrowse(uri: URI, quiet: Boolean) = {
+  private def tryBrowse(uri: URI, quiet: Boolean) = {
     try {
       val dsk = Class.forName("java.awt.Desktop")
       dsk.getMethod("browse", classOf[java.net.URI]).invoke(
