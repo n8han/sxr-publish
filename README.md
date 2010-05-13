@@ -5,7 +5,7 @@ This [Simple Build Tool][sbt] plugin publishes annotated source files produced b
 
 [sbt]: http://code.google.com/p/simple-build-tool/
 [sxr]: http://github.com/harrah/browse
-[sxr-soucred]: http://github.com/softprops/sxr-sourced
+[sxr-sourced]: http://github.com/softprops/sxr-sourced
 
 Setup
 -----
