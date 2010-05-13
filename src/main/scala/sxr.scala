@@ -7,6 +7,7 @@ import javax.crypto
 import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
+  private val databinder_net = "Databinder repository" at "http://databinder.net/repo/"
   /** Override to define a particular sxr artifact */
   def sxr_artifact = "unofficial.sxr" %% "sxr" % "0.2.4.u1"
   /** Artifact assigned to a custom configuration */

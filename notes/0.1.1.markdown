@@ -1,0 +1,1 @@
+Move utility methods into singleton object to avoid inheritance clashes.
