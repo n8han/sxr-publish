@@ -14,8 +14,6 @@ trait Write extends BasicScalaProject {
   lazy val sxr = sxr_artifact % "sxr->default(compile)"
   /** Output path of the compiler plugin, does not control the path but should reflect it */
   def sxrMainPath = outputPath / "classes.sxr"
-  /** @return index.html file nested under the given path */
-  def indexFile[T](p: { def / (f: String): T }) = p / "index.html"
   /** Output path of the compiler plugin's test sources, not currently used */
   def sxrTestPath = outputPath / "test-classes.sxr"
 
@@ -54,7 +52,7 @@ trait Publish extends Write {
 
   lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
   def previewSxrAction = task { 
-    Publish.tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
+    Publish.tryBrowse(Publish.indexFile(sxrMainPath).asFile.toURI, false)
   } dependsOn writeSxr
 
   /** Dispatch Http instance to be used when publishing */
@@ -95,7 +93,7 @@ trait Publish extends Write {
     (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
     } orElse {
-      Publish.tryBrowse(indexFile(sxrPublishPath).to_uri, true)
+      Publish.tryBrowse(Publish.indexFile(sxrPublishPath).to_uri, true)
     }
   } } dependsOn writeSxr
 
@@ -111,17 +109,19 @@ trait Publish extends Write {
 }
 
 object Publish {
-  private def missing(path: Path, title: String) =
+  def missing(path: Path, title: String) =
     Some(path) filter (!_.exists) map { ne =>
       "Missing %s, expected in %s" format (title, path)
     }
 
-  private def missing(str: String, path: Path, title: String) = 
+  def missing(str: String, path: Path, title: String) = 
     Some(str) filter { _ == "" } map { str =>
       "Missing value %s in %s" format (title, path)
     }
+  /** @return index.html file nested under the given path */
+  def indexFile[T](p: { def / (f: String): T }) = p / "index.html"
   /** Opens uri in a browser if on a JVM 1.6+ */
-  private def tryBrowse(uri: URI, quiet: Boolean) = {
+  def tryBrowse(uri: URI, quiet: Boolean) = {
     try {
       val dsk = Class.forName("java.awt.Desktop")
       dsk.getMethod("browse", classOf[java.net.URI]).invoke(
@@ -130,5 +130,5 @@ object Publish {
       None
     } catch { case e => if(quiet) None else Some("Error trying to preview notes:\n\t" + rootCause(e).toString) }
   }
-  private def rootCause(e: Throwable): Throwable = if(e.getCause eq null) e else rootCause(e.getCause)
+  def rootCause(e: Throwable): Throwable = if(e.getCause eq null) e else rootCause(e.getCause)
 }
