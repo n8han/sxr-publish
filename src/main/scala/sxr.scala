@@ -18,8 +18,8 @@ trait Write extends BasicScalaProject {
 
   /** Custom sxr configuration, so that sxr is not on the regular compile path */
   val sxrConf = Configurations.config("sxr")
-  /** All files in the sxr configuration, should just be the one jar */
-  def sxrFinder = configurationPath(sxrConf) * "*"
+  /** Select the jar in the sxr configuration path */
+  def sxrFinder = configurationPath(sxrConf) * "*.jar"
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
   protected def sxrOption = sxrFinder.get.filter { f => sxrEnabled } map { p =>
     new CompileOption("-Xplugin:" + p.absolutePath)
