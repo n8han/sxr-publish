@@ -12,14 +12,14 @@ Setup
 
 The plugin and server are designed to work as a service hosted at `sourced.implicit.ly`. The shared secret is bound to the Ivy "organization", Maven "groupId" of a project (defined by [sxrOrg][sxrOrg]). A secret is assigned to an organization, allowing projects that belong to it to publish to versioned paths below its dotted identifier. For example, knowing the secret for "com.example", you could publish to the following path:
 
-[sxrOrg]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.2/sxr.scala.html#16936
+[sxrOrg]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.4/sxr.scala.html#16904
 
     /com.example/project/0.0.1/SourceName.scala.html
 
 Shared secrets are retrieved in a file in the user's home directory. If you are publishing to `sourced.implicit.ly` (defined by [sxrHostname][sxrHostname]), the default [sxrCredentialsPath][sxrCredentialsPath] is `~/.sourced.implicit.ly` . Within this file you may define as many organization secrets as you know. The secret "secret" for `com.example` is defined as follows:
 
-[sxrHostname]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.2/sxr.scala.html#16945
-[sxrCredentialsPath]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.2/sxr.scala.html#16947
+[sxrHostname]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.4/sxr.scala.html#16913
+[sxrCredentialsPath]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.4/sxr.scala.html#16915
 
     com.example=secret
 
