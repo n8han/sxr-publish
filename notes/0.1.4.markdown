@@ -1,0 +1,10 @@
+**First public release**: This [Simple Build Tool][sbt] plugin publishes annotated source files produced by the [Scala X-Ray][sxr] compiler plugin. It communicates with an  [Sxr Sourced][sxr-sourced] server using a simple shared secret protocol over HTTP: an HmacSHA1 signature of publish paths and file contents is attached to PUT requests in a `sig` parameter.
+
+[sbt]: http://code.google.com/p/simple-build-tool/
+[sxr]: http://github.com/harrah/browse
+[sxr-sourced]: http://github.com/softprops/sxr-sourced
+
+
+Updates:
+
+* Restricts plugin classpath to jars
