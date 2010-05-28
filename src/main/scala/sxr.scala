@@ -13,6 +13,10 @@ trait Write extends BasicScalaProject {
   lazy val SxrPlugin = (new Configuration("sxr")) hide
   /** Artifact assigned to SxrPlugin configuration */
   lazy val sxr = sxr_artifact % SxrPlugin.name
+  abstract override def excludeIDs = 
+    if (sxrEnabled) super.excludeIDs
+    else sxr :: super.excludeIDs.toList
+
   /** Output path of the compiler plugin, does not control the path but should reflect it */
   def sxrMainPath = outputPath / "classes.sxr"
   /** Output path of the compiler plugin's test sources, not currently used */
@@ -34,7 +38,7 @@ trait Write extends BasicScalaProject {
   lazy val writeSxr = writeSxrAction describedAs "Clean and re-compile with the sxr plugin enabled, writes annotated sources"
   def writeSxrAction = fileTask(sxrMainPath from mainSources) {
     sxrEnabled = true
-    clean.run orElse compile.run orElse {
+    update.run orElse clean.run orElse compile.run orElse {
       sxrEnabled = false
       None
     }
