@@ -14,7 +14,7 @@ trait Write extends BasicScalaProject {
   /** Artifact assigned to SxrPlugin configuration */
   lazy val sxr = sxr_artifact % SxrPlugin.name
   abstract override def excludeIDs = 
-    if (sxrEnabled) super.excludeIDs
+    if (sxrEnabled.value) super.excludeIDs
     else sxr :: super.excludeIDs.toList
 
   /** Output path of the compiler plugin, does not control the path but should reflect it */
@@ -27,20 +27,18 @@ trait Write extends BasicScalaProject {
   /** Select the jar in the sxr configuration path */
   def sxrFinder = configurationPath(sxrConf) * "*.jar"
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
-  protected def sxrOption = sxrFinder.get.filter { f => sxrEnabled } map { p =>
+  protected def sxrOption = sxrFinder.get.filter { f => sxrEnabled.value } map { p =>
     new CompileOption("-Xplugin:" + p.absolutePath)
   } toList
   /** Adds in whatever is returned by sxrOption */
   abstract override def compileOptions = sxrOption ++ super.compileOptions
   /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
-  private var sxrEnabled = false
+  private val sxrEnabled = new scala.util.DynamicVariable(false)
 
   lazy val writeSxr = writeSxrAction describedAs "Clean and re-compile with the sxr plugin enabled, writes annotated sources"
   def writeSxrAction = fileTask(sxrMainPath from mainSources) {
-    sxrEnabled = true
-    update.run orElse clean.run orElse compile.run orElse {
-      sxrEnabled = false
-      None
+    sxrEnabled.withValue(true) {
+      update.run orElse clean.run orElse compile.run orElse None
     }
   }
 }
