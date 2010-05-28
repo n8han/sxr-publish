@@ -1,0 +1,3 @@
+* Uses a `scala.util.DynamicVariable` for `sxrEnabled` for better control and error recovery
+* Excludes sxr dependency from `update` if not enabled so it won't error out when sxr artifact is unavailable
+* Calls `update` explicitly to fetch from sxr tasks
