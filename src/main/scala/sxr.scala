@@ -12,8 +12,7 @@ trait Write extends BasicScalaProject {
   /** Custom config, to keep sxr's jar separate and hide the dependency when publishing */
   lazy val SxrPlugin = (new Configuration("sxr")) hide
   /** Artifact assigned to SxrPlugin configuration */
-  lazy val sxr = sxr_artifact % "%s->default(compile)".format(SxrPlugin.name)
-  abstract override def extraDefaultConfigurations = SxrPlugin :: super.extraDefaultConfigurations
+  lazy val sxr = sxr_artifact % SxrPlugin.name
   /** Output path of the compiler plugin, does not control the path but should reflect it */
   def sxrMainPath = outputPath / "classes.sxr"
   /** Output path of the compiler plugin's test sources, not currently used */
