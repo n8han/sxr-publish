@@ -8,7 +8,7 @@ import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
   /** Override to define a particular sxr artifact */
-  def sxr_artifact = "org.scala-tools.sxr" %% "sxr" % "0.2.4"
+  def sxr_artifact = "org.scala-tools.sxr" %% "sxr" % "0.2.5-SNAPSHOT"
   /** Custom config, to keep sxr's jar separate and hide the dependency when publishing */
   lazy val SxrPlugin = (new Configuration("sxr")) hide
   /** Artifact assigned to SxrPlugin configuration */
@@ -27,11 +27,16 @@ trait Write extends BasicScalaProject {
   /** Select the jar in the sxr configuration path */
   def sxrFinder = configurationPath(sxrConf) * "*.jar"
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
-  protected def sxrOption = sxrFinder.get.filter { f => sxrEnabled.value } map { p =>
-    new CompileOption("-Xplugin:" + p.absolutePath)
+  protected def sxrOptions = sxrFinder.get.filter { f => sxrEnabled.value } flatMap { p =>
+    (new CompileOption("-Xplugin:" + p.absolutePath) :: Nil) ++ (
+      if (linkFile.exists)
+        Some(new CompileOption("-P:sxr:link-file:" + linkFile.absolutePath))
+      else None
+    )
   } toList
+  def linkFile = path("sxr.links")
   /** Adds in whatever is returned by sxrOption */
-  abstract override def compileOptions = sxrOption ++ super.compileOptions
+  abstract override def compileOptions = sxrOptions ++ super.compileOptions
   /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
   private val sxrEnabled = new scala.util.DynamicVariable(false)
 
@@ -91,7 +96,7 @@ trait Publish extends Write {
   lazy val publishSxr = publishSxrAction describedAs "Publish annotated, versioned project sources to %s".format(sxrHostname)
   def publishSxrAction = task { sxrCredentialReqs orElse {
     val none: Option[String] = None
-    val exts = "html" :: "js" :: "css" :: Nil
+    val exts = "html" :: "js" :: "css" :: "index" :: Nil
     val sources = exts map { e => descendents(sxrMainPath, "*." + e) } reduceLeft { _ +++ _ }
     (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
