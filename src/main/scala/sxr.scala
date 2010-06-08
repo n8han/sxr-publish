@@ -34,10 +34,22 @@ trait Write extends BasicScalaProject {
   protected def sxrOptions = sxrFinder.get.filter { f => sxrEnabled.value } flatMap { p =>
     new CompileOption("-Xplugin:" + p.absolutePath) :: new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) :: Nil
   } toList
+  /** Regex extractor that pulls names and versions from jarfile names */
+  private val DepJar = """^([^_]+)(?:_[^-]+)?-(.+)\.jar""".r
+  /** Guessed list of dependencies (including transitive) from all jars under managedDependencyPath */
+  private def dependency_guess = (Set[(String,String)]() /: (managedDependencyPath ** "*.jar").get) { (set, item) => item.name match {
+    case DepJar(name, vers) => set + ((name, vers))
+    case _ => set
+  } } + (("scala-library", buildScalaVersion))
+  /** Temporary file storing sxr links */
   def sxrLinksPath = outputPath / "sxr.links"
+  /** Updated sxrLinksPath with latest from sxrHost filtered by dependency_guess */
   def sxrLinks = Publish.http(sxrHost / "sxr.links" >~ { source =>
+    val deps = dependency_guess
     sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
-      source.getLines.foreach { line => writer.write(line) }
+      source.getLines.filter { line => line.split('/').reverse match {
+        case Seq(_, vers, name, _*) => deps.contains((name, vers))
+      } } foreach { line => writer.write(line) }
       None
     }
     sxrLinksPath
@@ -118,7 +130,7 @@ trait Publish extends Write {
 
 object Publish {
   /** Dispatch Http instance for retrieving links and publishing */
-  lazy val http = new dispatch.Http
+  def http = new dispatch.Http
 
   def missing(path: Path, title: String) =
     Some(path) filter (!_.exists) map { ne =>
