@@ -7,6 +7,10 @@ import javax.crypto
 import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
+  /** Publishing target host, defaults to "sourced.implicit.ly" */
+  def sxrHostname = "sourced.implicit.ly"
+  /** Defaults to sxrHostname on port 80 */
+  def sxrHost = :/(sxrHostname)
   /** Override to define a particular sxr artifact */
   def sxr_artifact = "org.scala-tools.sxr" %% "sxr" % "0.2.5-SNAPSHOT"
   /** Custom config, to keep sxr's jar separate and hide the dependency when publishing */
@@ -28,13 +32,16 @@ trait Write extends BasicScalaProject {
   def sxrFinder = configurationPath(sxrConf) * "*.jar"
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
   protected def sxrOptions = sxrFinder.get.filter { f => sxrEnabled.value } flatMap { p =>
-    (new CompileOption("-Xplugin:" + p.absolutePath) :: Nil) ++ (
-      if (linkFile.exists)
-        Some(new CompileOption("-P:sxr:link-file:" + linkFile.absolutePath))
-      else None
-    )
+    new CompileOption("-Xplugin:" + p.absolutePath) :: new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) :: Nil
   } toList
-  def linkFile = path("sxr.links")
+  def sxrLinksPath = outputPath / "sxr.links"
+  def sxrLinks = Publish.http(sxrHost / "sxr.links" >~ { source =>
+    sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
+      source.getLines.foreach { line => writer.write(line) }
+      None
+    }
+    sxrLinksPath
+  })
   /** Adds in whatever is returned by sxrOption */
   abstract override def compileOptions = sxrOptions ++ super.compileOptions
   /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
@@ -63,13 +70,6 @@ trait Publish extends Write {
     Publish.tryBrowse(Publish.indexFile(sxrMainPath).asFile.toURI, false)
   } dependsOn writeSxr
 
-  /** Dispatch Http instance to be used when publishing */
-  lazy private val http = new dispatch.Http
-
-  /** Publishing target host, defaults to "sourced.implicit.ly" */
-  def sxrHostname = "sourced.implicit.ly"
-  /** Defaults to sxrHostname on port 80 */
-  def sxrHost = :/(sxrHostname)
   /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
   def sxrCredentialsPath = Path.userHome / ("." + sxrHostname)
   /** Target path on the server */
@@ -89,7 +89,7 @@ trait Publish extends Write {
       mac.update(l)
     }
     val sig = new String(encodeBase64(mac.doFinal()))
-    http(filePath <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
+    Publish.http(filePath <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
     None
   } catch { case e => Some(e.getMessage) }
 
@@ -117,6 +117,9 @@ trait Publish extends Write {
 }
 
 object Publish {
+  /** Dispatch Http instance for retrieving links and publishing */
+  lazy val http = new dispatch.Http
+
   def missing(path: Path, title: String) =
     Some(path) filter (!_.exists) map { ne =>
       "Missing %s, expected in %s" format (title, path)
