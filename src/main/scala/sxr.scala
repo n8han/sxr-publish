@@ -32,15 +32,18 @@ trait Write extends BasicScalaProject {
   def sxrFinder = configurationPath(sxrConf) * "*.jar"
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
   protected def sxrOptions = sxrFinder.get.filter { f => sxrEnabled.value } flatMap { p =>
-    new CompileOption("-Xplugin:" + p.absolutePath) :: new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) :: Nil
+    new CompileOption("-Xplugin:" + p.absolutePath) :: 
+      new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) :: Nil
   } toList
   /** Regex extractor that pulls names and versions from jarfile names */
   private val DepJar = """^([^_]+)(?:_[^-]+)?-(.+)\.jar""".r
   /** Guessed list of dependencies from all jars under managedDependencyPath */
-  private def jarIds = (Set.empty[(String,String)] /: (managedDependencyPath ** "*.jar").get) { (set, item) => item.name match {
-    case DepJar(name, vers) => set + ((name, vers))
-    case _ => set
-  } }
+  private def jarIds = (Set.empty[(String,String)] /: (managedDependencyPath ** "*.jar").get) {
+    (set, item) => item.name match {
+      case DepJar(name, vers) => set + ((name, vers))
+      case _ => set
+    } 
+  }
   /** Dependency ids from other projects in the same build */
   private def projectIds = dependencies map { proj => (proj.normalizedName, proj.version.toString) }
   /** Scala library dependency id */
