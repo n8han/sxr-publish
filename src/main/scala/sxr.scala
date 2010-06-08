@@ -37,7 +37,7 @@ trait Write extends BasicScalaProject {
   /** Regex extractor that pulls names and versions from jarfile names */
   private val DepJar = """^([^_]+)(?:_[^-]+)?-(.+)\.jar""".r
   /** Guessed list of dependencies from all jars under managedDependencyPath */
-  private def jarIds = (Set[(String,String)]() /: (managedDependencyPath ** "*.jar").get) { (set, item) => item.name match {
+  private def jarIds = (Set.empty[(String,String)] /: (managedDependencyPath ** "*.jar").get) { (set, item) => item.name match {
     case DepJar(name, vers) => set + ((name, vers))
     case _ => set
   } }
