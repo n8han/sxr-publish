@@ -36,16 +36,20 @@ trait Write extends BasicScalaProject {
   } toList
   /** Regex extractor that pulls names and versions from jarfile names */
   private val DepJar = """^([^_]+)(?:_[^-]+)?-(.+)\.jar""".r
-  /** Guessed list of dependencies (including transitive) from all jars under managedDependencyPath */
-  private def dependency_guess = (Set[(String,String)]() /: (managedDependencyPath ** "*.jar").get) { (set, item) => item.name match {
+  /** Guessed list of dependencies from all jars under managedDependencyPath */
+  private def jarIds = (Set[(String,String)]() /: (managedDependencyPath ** "*.jar").get) { (set, item) => item.name match {
     case DepJar(name, vers) => set + ((name, vers))
     case _ => set
-  } } + (("scala-library", buildScalaVersion))
+  } }
+  /** Dependency ids from other projects in the same build */
+  private def projectIds = dependencies map { proj => (proj.normalizedName, proj.version.toString) }
+  /** Scala library dependency id */
+  private def scalaId = ("scala-library", buildScalaVersion)
   /** Temporary file storing sxr links */
   def sxrLinksPath = outputPath / "sxr.links"
-  /** Updated sxrLinksPath with latest from sxrHost filtered by dependency_guess */
+  /** Updated sxrLinksPath with latest from sxrHost filtered by all found dependency ids */
   def sxrLinks = Publish.http(sxrHost / "sxr.links" >~ { source =>
-    val deps = dependency_guess
+    val deps = jarIds ++ projectIds + scalaId
     sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
       source.getLines.filter { line => line.split('/').reverse match {
         case Seq(_, vers, name, _*) => deps.contains((name, vers))
