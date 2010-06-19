@@ -53,8 +53,8 @@ trait Publish extends Write {
   def sxrOrg = organization
   /** Project name to publish, defaults to normalizedName */
   def sxrName = normalizedName
-  /** Version string to publish, defaults to version.toString */
-  def sxrVersion = version.toString
+  /** Current version with any -SNAPSHOT suffix removed */
+  def sxrVersion = "-SNAPSHOT$".r.replaceFirstIn(version.toString, "")
   /** Secret for the sxrOrg, defaults to property defined in the host config file */
   def sxrSecret = getSxrProperty(sxrOrg)
 
