@@ -7,6 +7,7 @@ import javax.crypto
 import org.apache.commons.codec.binary.Base64.encodeBase64
 
 trait Write extends BasicScalaProject {
+  import Utils._
   /** Publishing target host, defaults to "sourced.implicit.ly" */
   def sxrHostname = "sourced.implicit.ly"
   /** Defaults to sxrHostname on port 80 */
@@ -54,7 +55,7 @@ trait Write extends BasicScalaProject {
   /** Temporary file storing sxr links */
   def sxrLinksPath = outputPath / "sxr.links"
   /** Updated sxrLinksPath with latest from sxrHost filtered by all found dependency ids */
-  def sxrLinks = Publish.http(sxrHost / "sxr.links" >~ { source =>
+  def sxrLinks = http(gzip(sxrHost) / "sxr.links" >~ { source =>
     val deps = jarIds ++ projectIds + scalaId
     sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
       source.getLines.filter { line => line.split('/').reverse match {
@@ -78,6 +79,7 @@ trait Write extends BasicScalaProject {
 }
 
 trait Publish extends Write {
+  import Utils._
   /** Organization we'll attempt to publish to, defaults to `organization` */
   def sxrOrg = organization
   /** Project name to publish, defaults to normalizedName */
@@ -89,7 +91,7 @@ trait Publish extends Write {
 
   lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
   def previewSxrAction = task { 
-    Publish.tryBrowse(Publish.indexFile(sxrMainPath).asFile.toURI, false)
+    tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
   } dependsOn writeSxr
 
   /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
@@ -111,7 +113,7 @@ trait Publish extends Write {
       mac.update(l)
     }
     val sig = new String(encodeBase64(mac.doFinal()))
-    Publish.http(filePath <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
+      http(filePath <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
     None
   } catch { case e => Some(e.getMessage) }
 
@@ -123,7 +125,7 @@ trait Publish extends Write {
     (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
     } orElse {
-      Publish.tryBrowse(Publish.indexFile(sxrPublishPath).to_uri, true)
+        tryBrowse(  indexFile(sxrPublishPath).to_uri, true)
     }
   } } dependsOn writeSxr
 
@@ -134,13 +136,15 @@ trait Publish extends Write {
     props.getProperty(name, "")
   }
 
-  def sxrCredentialReqs = ( Publish.missing(sxrCredentialsPath, "credentials file")
-    ) orElse { Publish.missing(sxrSecret, sxrCredentialsPath, "%s secret" format sxrOrg) }
+  def sxrCredentialReqs = ( missing(sxrCredentialsPath, "credentials file")
+    ) orElse { missing(sxrSecret, sxrCredentialsPath, "%s secret" format sxrOrg) }
 }
 
-object Publish {
+object Utils {
   /** Dispatch Http instance for retrieving links and publishing */
   def http = new dispatch.Http
+  /** Force app-engine to use gzip; it won't with known UA */
+  val gzip = (_: Request).gzip <:< Map("User-Agent" -> "gzip")
 
   def missing(path: Path, title: String) =
     Some(path) filter (!_.exists) map { ne =>
