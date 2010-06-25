@@ -22,7 +22,7 @@ trait Write extends BasicScalaProject {
     else sxr :: super.excludeIDs.toList
 
   /** Output path of the compiler plugin, does not control the path but should reflect it */
-  def sxrMainPath = outputPath / "classes.sxr"
+  def sxrMainPath = (outputPath / "classes.sxr") ##
   /** Output path of the compiler plugin's test sources, not currently used */
   def sxrTestPath = outputPath / "test-classes.sxr"
 
@@ -30,10 +30,13 @@ trait Write extends BasicScalaProject {
   val sxrConf = Configurations.config("sxr")
   /** Select the jar in the sxr configuration path */
   def sxrFinder = configurationPath(sxrConf) * "*.jar"
+  /** Normally inherited from MavenStyleScalaPaths */
+  def mainScalaSourcePath: Path
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
   protected def sxrOptions = sxrFinder.get.filter { f => sxrEnabled.value } flatMap { p =>
     new CompileOption("-Xplugin:" + p.absolutePath) :: 
-      new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) :: Nil
+      new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) ::
+      new CompileOption("-P:sxr:base-directory:" + mainScalaSourcePath) :: Nil
   } toList
   /** Regex extractor that pulls names and versions from jarfile names */
   private val DepJar = """^([^_]+)(?:_[^-]+)?-(.+)\.jar""".r
@@ -102,7 +105,7 @@ trait Publish extends Write {
     val key = new crypto.spec.SecretKeySpec(sxrSecret, SHA1)
     val mac = crypto.Mac.getInstance(SHA1)
     mac.init(key)
-    val filePath = sxrPublishPath / path.name
+    val filePath = sxrPublishPath / path.relativePath
     mac.update(filePath.to_uri.toString)
     scala.io.Source.fromFile(path.asFile).getLines foreach { l =>
       mac.update(l)
