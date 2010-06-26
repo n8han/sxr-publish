@@ -178,3 +178,9 @@ object Utils {
     "css"     -> "text/css"
   )
 }
+
+/** Mix in to test against local server */
+trait LocalTest extends Write {
+  override def sxrHostname = "localhost"
+  override def sxrHost = :/(sxrHostname, 8080)
+}
