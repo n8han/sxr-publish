@@ -109,23 +109,25 @@ trait Publish extends Write {
     mac.init(key)
     val filePath = sxrPublishPath / path.relativePath
     mac.update(filePath.to_uri.toString)
-    scala.io.Source.fromFile(path.asFile).getLines foreach { l =>
-      mac.update(l)
-    }
-    val sig = new String(encodeBase64(mac.doFinal()))
-      http(filePath <<? Map("sig" -> sig) <<< (path.asFile, "text/plain") >|)
-    None
-  } catch { case e => Some(e.getMessage) }
+    FileUtilities.readBytes(path.asFile, log).fold({ err => Some(err) }, { bytes =>
+      val sig = new String(encodeBase64(mac.doFinal(bytes)))
+      val Ext(ext) = path.name
+      http(filePath <<? Map("sig" -> sig) <<< (path.asFile, contentType(ext)) >|)
+      None
+    })
+  } catch { case e => Some(e.toString) }
 
   lazy val publishSxr = publishSxrAction describedAs "Publish annotated, versioned project sources to %s".format(sxrHostname)
   def publishSxrAction = task { sxrCredentialReqs orElse {
     val none: Option[String] = None
-    val exts = "html" :: "js" :: "css" :: "index" :: Nil
+    val sxrIndex = sxrMainPath / "link.index"
+    FileUtilities.gzip(sxrIndex, sxrMainPath / "link.index.gz", log)
+    val exts = "html" :: "js" :: "css" :: "index.gz" :: Nil
     val sources = exts map { e => descendents(sxrMainPath, "*." + e) } reduceLeft { _ +++ _ }
     (none /: sources.get) { (last, cur) =>
       last orElse publish(cur)
     } orElse {
-        tryBrowse(  indexFile(sxrPublishPath).to_uri, true)
+      tryBrowse(indexFile(sxrPublishPath).to_uri, true)
     }
   } } dependsOn writeSxr
 
@@ -168,4 +170,11 @@ object Utils {
     } catch { case e => if(quiet) None else Some("Error trying to preview notes:\n\t" + rootCause(e).toString) }
   }
   def rootCause(e: Throwable): Throwable = if(e.getCause eq null) e else rootCause(e.getCause)
+  val Ext = """.+\.([^\.]+)""".r
+  val contentType = Map(
+    "js"      -> "application/javascript",
+    "html"    -> "text/html",
+    "gz"      -> "application/x-gzip",
+    "css"     -> "text/css"
+  )
 }
