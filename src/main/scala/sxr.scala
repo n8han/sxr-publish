@@ -36,7 +36,7 @@ trait Write extends BasicScalaProject {
   /** Returns sxr as a compiler option only if sxrEnabled is set to true */
   protected def sxrOptions = sxrFinder.get.filter { f => sxrEnabled.value } flatMap { p =>
     new CompileOption("-Xplugin:" + p.absolutePath) :: 
-      new CompileOption("-P:sxr:link-file:" + sxrLinks.absolutePath) ::
+      new CompileOption("-P:sxr:link-file:" + sxrLinksPath.absolutePath) ::
       new CompileOption("-P:sxr:base-directory:" + mainScalaSourcePath) :: Nil
   } toList
   /** Regex extractor that pulls names and versions from jarfile names */
@@ -58,16 +58,16 @@ trait Write extends BasicScalaProject {
   /** Temporary file storing sxr links */
   def sxrLinksPath = outputPath / "sxr.links"
   /** Updated sxrLinksPath with latest from sxrHost filtered by all found dependency ids */
-  def sxrLinks = http(gzip(sxrHost) / "sxr.links" >~ { source =>
-    val deps = jarIds ++ projectIds + scalaId
-    sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
-      source.getLines.filter { line => line.split('/').reverse match {
-        case Seq(_, vers, name, _*) => deps.contains((name, vers))
-      } } foreach { line => writer.write(line) }
-      None
-    }
-    sxrLinksPath
-  })
+  def updateSxrLinks =
+    http(gzip(sxrHost) / "sxr.links" >~ { source =>
+      val deps = jarIds ++ projectIds + scalaId
+      sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
+        source.getLines.filter { line => line.split('/').reverse match {
+          case Seq(_, vers, name, _*) => deps.contains((name, vers))
+        } } foreach { line => writer.write(line) }
+        None
+      }
+    })
   /** Adds in whatever is returned by sxrOption */
   abstract override def compileOptions = sxrOptions ++ super.compileOptions
   /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
@@ -76,7 +76,7 @@ trait Write extends BasicScalaProject {
   lazy val writeSxr = writeSxrAction describedAs "Clean and re-compile with the sxr plugin enabled, writes annotated sources"
   def writeSxrAction = fileTask(sxrMainPath from mainSources) {
     sxrEnabled.withValue(true) {
-      update.run orElse clean.run orElse compile.run orElse None
+      update.run orElse clean.run orElse updateSxrLinks orElse compile.run orElse None
     }
   }
 }
