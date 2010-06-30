@@ -49,7 +49,10 @@ trait Write extends BasicScalaProject {
     } 
   }
   /** Dependency ids from other projects in the same build */
-  private def projectIds = dependencies map { proj => (proj.normalizedName, proj.version.toString) }
+  private def projectIds = dependencies map { 
+    case proj: Publish => (proj.normalizedName, proj.sxrVersion)
+    case proj => (proj.normalizedName, proj.version.toString) 
+  }
   /** Scala library dependency id */
   private def scalaId = ("scala-library", buildScalaVersion)
   /** Temporary file storing sxr links */
