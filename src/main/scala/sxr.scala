@@ -13,7 +13,7 @@ trait Write extends BasicScalaProject {
   /** Defaults to sxrHostname on port 80 */
   def sxrHost = :/(sxrHostname)
   /** Override to define a particular sxr artifact */
-  def sxr_artifact = "org.scala-tools.sxr" %% "sxr" % "0.2.5-SNAPSHOT"
+  def sxr_artifact = "org.scala-tools.sxr" %% "sxr" % "0.2.6"
   /** Custom config, to keep sxr's jar separate and hide the dependency when publishing */
   lazy val SxrPlugin = (new Configuration("sxr")) hide
   /** Artifact assigned to SxrPlugin configuration */
