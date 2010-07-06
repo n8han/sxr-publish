@@ -62,8 +62,8 @@ trait Write extends BasicScalaProject {
     http(gzip(sxrHost) / "sxr.links" >~ { source =>
       val deps = jarIds ++ projectIds + scalaId
       sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
-        source.getLines.filter { line => line.split('/').reverse match {
-          case Seq(_, vers, name, _*) => deps.contains((name, vers))
+        source.getLines.filter { line => line.trim.split('/').reverse match {
+          case Seq(vers, name, _*) => deps.contains((name, vers))
         } } foreach { line => writer.write(line) }
         None
       }
