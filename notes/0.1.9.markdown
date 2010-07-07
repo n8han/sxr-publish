@@ -1,0 +1,13 @@
+A number of changes have been made to this plugin, [sxr-sourced][sxr-sourced], and [Scala X-Ray][sxr] to enable hyperlinks among separately published compilation modules. You can see an example of this in the [published source for the plugin][sxr-publish], which now links Dispatch calls to Dispatch sources.
+
+Projects with submodules may have links between modules, and projects that depend on libraries whose sources are published may link to those. This linking *should be* automatic, but if the contents of the source repository have changed between preview and publishing runs you do need to `clean` to be sure the published sources reflect the current server contents.
+
+- Depends on sxr 0.2.6
+- Compresses `link.index` to `link.index.gz` before publishing
+- Pulls `sxr.links` from server and filters by known / guessed dependencies before passing to sxr
+- Passes a `base-directory` to sxr so its output will reflect the source directory structure
+- Strips SNAPSHOT from any version name, so that in-progress versions will be published over when complete
+
+[sxr-publish]: http://sourced.implicit.ly/net.databinder/sxr-publish/0.1.9/sxr.scala.html
+[sxr-sourced]: http://github.com/softprops/sxr-sourced
+[sxr]: http://github.com/harrah/browse
