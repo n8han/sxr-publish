@@ -1,7 +1,7 @@
 import sbt._
 
 class Project(info: ProjectInfo) extends PluginProject(info) with sxr.Publish with posterous.Publish {
-  val dispatch = "net.databinder" %% "dispatch-http" % "0.7.4"
+  val dispatch = "net.databinder" %% "dispatch-mime" % "0.7.5"
 
   override def extraTags = "sbt plugin" :: Nil
 

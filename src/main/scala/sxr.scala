@@ -83,6 +83,7 @@ trait Write extends BasicScalaProject {
 
 trait Publish extends Write {
   import Utils._
+  import dispatch.mime.Mime._
   /** Organization we'll attempt to publish to, defaults to `organization` */
   def sxrOrg = organization
   /** Project name to publish, defaults to normalizedName */
@@ -115,7 +116,11 @@ trait Publish extends Write {
     FileUtilities.readBytes(path.asFile, log).fold({ err => Some(err) }, { bytes =>
       val sig = new String(encodeBase64(mac.doFinal(bytes)))
       val Ext(ext) = path.name
-      http(filePath <<? Map("sig" -> sig) <<< (path.asFile, contentType(ext)) >|)
+      http(filePath << Map.empty[String,String] >- { uploadPath =>
+        http(sxrHost / uploadPath.substring(1) << Map("sig" -> sig) << ("file", path.asFile, contentType(ext)) >- { out =>
+          println(out)
+        })
+      })
       None
     })
   } catch { case e => Some(e.toString) }
@@ -147,7 +152,21 @@ trait Publish extends Write {
 
 object Utils {
   /** Dispatch Http instance for retrieving links and publishing */
-  def http = new dispatch.Http
+  def http = new Http with FollowAllRedirects
+  /** To do: use upstream when available */
+  trait FollowAllRedirects extends Http {
+    override val client = new ConfiguredHttpClient with PermissiveRedirect
+    trait PermissiveRedirect extends org.apache.http.impl.client.AbstractHttpClient {
+      import org.apache.http.{HttpResponse,HttpStatus}
+      import org.apache.http.protocol.HttpContext
+      import HttpStatus._
+      override def createRedirectHandler = new org.apache.http.impl.client.DefaultRedirectHandler {
+        override def isRedirectRequested(res: HttpResponse, ctx: HttpContext) =
+          (SC_MOVED_TEMPORARILY :: SC_MOVED_PERMANENTLY :: SC_TEMPORARY_REDIRECT :: SC_SEE_OTHER :: Nil) contains
+            res.getStatusLine.getStatusCode
+      }
+    }
+  }
   /** Force app-engine to use gzip; it won't with known UA */
   val gzip = (_: Request).gzip <:< Map("User-Agent" -> "gzip")
 
