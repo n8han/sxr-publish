@@ -74,18 +74,35 @@ trait Write extends BasicScalaProject {
   /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
   private val sxrEnabled = new scala.util.DynamicVariable(false)
 
-  lazy val writeSxr = writeSxrAction describedAs
+  lazy val writeSxr = writeSxrMain && writeSxrTest describedAs
     "Clean and test-compile with the sxr plugin enabled, writes annotated sources"
-  def writeSxrAction =
-    fileTask((sxrMainPath :: sxrTestPath :: Nil) from mainSources +++ testSources) {
+
+  lazy val writeSxrMain = 
+    cleanOutdated(sxrMainPath, mainCompilePath) &&
+    writeSxrAction(sxrMainPath, mainSources, compile.run) 
+
+  lazy val writeSxrTest = 
+    cleanOutdated(sxrTestPath, testCompilePath) &&
+    writeSxrAction(sxrTestPath, testSources, testCompile.run)
+
+  private def myTask(target: Path, sources: PathFinder)(task: => Option[String]) =
+    fileTask(target from sources) {
+      if (sources.get.isEmpty) None
+      else task
+    }
+  private def cleanOutdated(target: Path, classes: Path) =
+    myTask(target, (classes ** "*.class")) {
+      FileUtilities.clean(target, log) orElse FileUtilities.clean(classes, log)
+    }
+
+  def writeSxrAction(target: Path, sources: PathFinder, compileAction: => Option[String]) =
+    myTask(target, sources) {
       sxrEnabled.withValue(true) {
         update.run orElse
-          clean.run orElse
           updateSxrLinks orElse
-          testCompile.run orElse
-          // create directory to avoid clean-recompile loop on no sources
-          FileUtilities.createDirectory(sxrMainPath, log) orElse
-          FileUtilities.createDirectory(sxrTestPath, log)
+          compileAction orElse
+          FileUtilities.createDirectory(target, log) orElse
+          FileUtilities.touch(target, log)
       }
     }
 }
@@ -109,7 +126,7 @@ trait Publish extends Write {
         tryBrowse(indexFile(sxrTestPath).asFile.toURI, false)
       else None
     }
-  } dependsOn writeSxr
+  } dependsOn (writeSxrMain, writeSxrTest)
 
   /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
   def sxrCredentialsPath = Path.userHome / ("." + sxrHostname)
@@ -140,11 +157,11 @@ trait Publish extends Write {
   } catch { case e => Some(e.toString) }
 
   lazy val publishSxr = 
-    publishSxrAction(
+    writeSxrMain && publishSxrAction(
       sxrMainPath, sxrPublishMainPath, Some(sxrMainPath / "link.index")
-    ) && publishSxrAction(
+    ) && writeSxrTest && publishSxrAction(
       sxrTestPath, sxrPublishTestPath, None
-    ) dependsOn writeSxr describedAs
+    ) describedAs
       "Publish annotated, versioned project sources to %s".format(sxrHostname)
 
   def publishSxrAction(src: Path, dest: Request, srcIndex: Option[Path]) = task { 
