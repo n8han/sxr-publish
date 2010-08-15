@@ -2,6 +2,7 @@ package sxr
 
 import sbt._
 import dispatch._
+import dispatch.Http._
 import java.net.URI
 import javax.crypto
 import org.apache.commons.codec.binary.Base64.encodeBase64
@@ -25,7 +26,7 @@ trait Write extends BasicScalaProject {
   /** Output path of the compiler plugin, does not control the path but should reflect it */
   def sxrMainPath = (outputPath / "classes.sxr") ##
   /** Output path of the compiler plugin's test sources, not currently used */
-  def sxrTestPath = outputPath / "test-classes.sxr"
+  def sxrTestPath = (outputPath / "test-classes.sxr") ##
 
   /** Custom sxr configuration, so that sxr is not on the regular compile path */
   val sxrConf = Configurations.config("sxr")
@@ -73,13 +74,20 @@ trait Write extends BasicScalaProject {
   /** Variable used to enable the sxr plugin for the duration of tasks requiring it */
   private val sxrEnabled = new scala.util.DynamicVariable(false)
 
-  lazy val writeSxr = writeSxrAction describedAs "Clean and re-compile with the sxr plugin enabled, writes annotated sources"
-  def writeSxrAction = fileTask(sxrMainPath from mainSources +++ testSources) {
-    sxrEnabled.withValue(true) {
-      update.run orElse clean.run orElse updateSxrLinks orElse
-        compile.run orElse updateSxrLinks orElse testCompile.run orElse None
+  lazy val writeSxr = writeSxrAction describedAs
+    "Clean and test-compile with the sxr plugin enabled, writes annotated sources"
+  def writeSxrAction =
+    fileTask((sxrMainPath :: sxrTestPath :: Nil) from mainSources +++ testSources) {
+      sxrEnabled.withValue(true) {
+        update.run orElse
+          clean.run orElse
+          updateSxrLinks orElse
+          testCompile.run orElse
+          // create directory to avoid clean-recompile loop on no sources
+          FileUtilities.createDirectory(sxrMainPath, log) orElse
+          FileUtilities.createDirectory(sxrTestPath, log)
+      }
     }
-  }
 }
 
 trait Publish extends Write {
@@ -97,7 +105,7 @@ trait Publish extends Write {
   lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
   def previewSxrAction = task { 
     tryBrowse(indexFile(sxrMainPath).asFile.toURI, false) orElse {
-      if (sxrTestPath.exists)
+      if (indexFile(sxrTestPath).exists)
         tryBrowse(indexFile(sxrTestPath).asFile.toURI, false)
       else None
     }
@@ -106,43 +114,54 @@ trait Publish extends Write {
   /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
   def sxrCredentialsPath = Path.userHome / ("." + sxrHostname)
   /** Target path on the server */
-  def sxrPublishPath = sxrHost / sxrOrg / sxrName / sxrVersion
+  def sxrPublishMainPath = sxrHost / sxrOrg / sxrName / sxrVersion
+  def sxrPublishTestPath = sxrHost / sxrOrg / (sxrName + ".test") / sxrVersion
 
   /** Publish to the given path, returns None if successful, or Some(errorstring) */
-  def publish(path: Path): Option[String] = try {
-    log.info("Publishing " + path)
+  def publish(src: Path, dest: Request): Option[String] = try {
+    log.info("Publishing " + src)
     val SHA1 = "HmacSHA1"
     implicit def str2bytes(str: String) = str.getBytes("utf8")
     val key = new crypto.spec.SecretKeySpec(sxrSecret, SHA1)
     val mac = crypto.Mac.getInstance(SHA1)
     mac.init(key)
-    val filePath = sxrPublishPath / path.relativePath
-    mac.update(filePath.to_uri.toString)
-    FileUtilities.readBytes(path.asFile, log).fold({ err => Some(err) }, { bytes =>
+    val destFile = dest / src.relativePath
+    mac.update(destFile.to_uri.toString)
+    FileUtilities.readBytes(src.asFile, log).fold({ err => Some(err) }, { bytes =>
       val sig = new String(encodeBase64(mac.doFinal(bytes)))
-      val Ext(ext) = path.name
-      http(filePath << Map.empty[String,String] >- { uploadPath =>
-        http(sxrHost / uploadPath.substring(1) << Map("sig" -> sig) << ("file", path.asFile, contentType(ext)) >- { out =>
-          println(out)
+      val Ext(ext) = src.name
+      http(destFile << Map.empty[String,String] >- { uploadPath =>
+        http(uploadPath << Map("sig" -> sig) << ("file", src.asFile, contentType(ext)) >- { out =>
+          log.info(out)
         })
       })
       None
     })
   } catch { case e => Some(e.toString) }
 
-  lazy val publishSxr = publishSxrAction describedAs "Publish annotated, versioned project sources to %s".format(sxrHostname)
-  def publishSxrAction = task { sxrCredentialReqs orElse {
-    val none: Option[String] = None
-    val sxrIndex = sxrMainPath / "link.index"
-    FileUtilities.gzip(sxrIndex, sxrMainPath / "link.index.gz", log)
-    val exts = "html" :: "js" :: "css" :: "index.gz" :: Nil
-    val sources = exts map { e => descendents(sxrMainPath, "*." + e) } reduceLeft { _ +++ _ }
-    (none /: sources.get) { (last, cur) =>
-      last orElse publish(cur)
-    } orElse {
-      tryBrowse(indexFile(sxrPublishPath).to_uri, true)
+  lazy val publishSxr = 
+    publishSxrAction(
+      sxrMainPath, sxrPublishMainPath, Some(sxrMainPath / "link.index")
+    ) && publishSxrAction(
+      sxrTestPath, sxrPublishTestPath, None
+    ) dependsOn writeSxr describedAs
+      "Publish annotated, versioned project sources to %s".format(sxrHostname)
+
+  def publishSxrAction(src: Path, dest: Request, srcIndex: Option[Path]) = task { 
+    sxrCredentialReqs orElse {
+      srcIndex foreach { si => FileUtilities.gzip(si, src / "link.index.gz", log) }
+      val exts = "html" :: "js" :: "css" :: "index.gz" :: Nil
+      val sources = exts map { e => descendents(src, "*." + e) } reduceLeft { _ +++ _ }
+      val none: Option[String] = None
+      (none /: sources.get) { (last, cur) =>
+        last orElse publish(cur, dest)
+      } orElse {
+        if (indexFile(src).exists)
+          tryBrowse(indexFile(dest).to_uri, true)
+        else None
+      }
     }
-  } } dependsOn writeSxr
+  }
 
   /** Return property from sxrCredentialsPath */
   private def getSxrProperty(name: String) = {
