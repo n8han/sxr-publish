@@ -1,3 +1,6 @@
 In order to work with the App Engine blobstore we had to change the sxr publishing API. You must upgrade to this version to continue to push annotated sources to [implicit.ly sourced][sourced].
 
 [sourced]: http://sourced.implicit.ly/
+
+* Can publish sources larger than 1 MB
+* Publishes test sources in additon to main sources

@@ -74,9 +74,10 @@ trait Write extends BasicScalaProject {
   private val sxrEnabled = new scala.util.DynamicVariable(false)
 
   lazy val writeSxr = writeSxrAction describedAs "Clean and re-compile with the sxr plugin enabled, writes annotated sources"
-  def writeSxrAction = fileTask(sxrMainPath from mainSources) {
+  def writeSxrAction = fileTask(sxrMainPath from mainSources +++ testSources) {
     sxrEnabled.withValue(true) {
-      update.run orElse clean.run orElse updateSxrLinks orElse compile.run orElse None
+      update.run orElse clean.run orElse updateSxrLinks orElse
+        compile.run orElse updateSxrLinks orElse testCompile.run orElse None
     }
   }
 }
@@ -95,7 +96,11 @@ trait Publish extends Write {
 
   lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
   def previewSxrAction = task { 
-    tryBrowse(indexFile(sxrMainPath).asFile.toURI, false)
+    tryBrowse(indexFile(sxrMainPath).asFile.toURI, false) orElse {
+      if (sxrTestPath.exists)
+        tryBrowse(indexFile(sxrTestPath).asFile.toURI, false)
+      else None
+    }
   } dependsOn writeSxr
 
   /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
