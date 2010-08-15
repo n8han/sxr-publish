@@ -50,7 +50,7 @@ trait Write extends BasicScalaProject {
     } 
   }
   /** Dependency ids from other projects in the same build */
-  private def projectIds = dependencies map { 
+  private def projectIds = (dependencies ++ (this :: Nil)) map { 
     case proj: Publish => (proj.normalizedName, proj.sxrVersion)
     case proj => (proj.normalizedName, proj.version.toString) 
   }
