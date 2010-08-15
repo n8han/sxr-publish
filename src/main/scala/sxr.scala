@@ -60,7 +60,7 @@ trait Write extends BasicScalaProject {
   def sxrLinksPath = outputPath / "sxr.links"
   /** Updated sxrLinksPath with latest from sxrHost filtered by all found dependency ids */
   def updateSxrLinks =
-    http(gzip(sxrHost) / "sxr.links" >~ { source =>
+    http(log)(gzip(sxrHost) / "sxr.links" >~ { source =>
       val deps = jarIds ++ projectIds + scalaId
       sbt.FileUtilities.write(sxrLinksPath.asFile, log) { writer =>
         source.getLines.filter { line => line.trim.split('/').reverse match {
@@ -120,13 +120,13 @@ trait Publish extends Write {
   def sxrSecret = getSxrProperty(sxrOrg)
 
   lazy val previewSxr = previewSxrAction describedAs "Write sxr annotated sources and open in browser"
-  def previewSxrAction = task { 
+  def previewSxrAction = writeSxrMain && writeSxrTest && task { 
     tryBrowse(indexFile(sxrMainPath).asFile.toURI, false) orElse {
       if (indexFile(sxrTestPath).exists)
         tryBrowse(indexFile(sxrTestPath).asFile.toURI, false)
       else None
     }
-  } dependsOn (writeSxrMain, writeSxrTest)
+  }
 
   /** Where to find sxrSecret, defaults to ~/.<sxrHostname> */
   def sxrCredentialsPath = Path.userHome / ("." + sxrHostname)
@@ -147,8 +147,8 @@ trait Publish extends Write {
     FileUtilities.readBytes(src.asFile, log).fold({ err => Some(err) }, { bytes =>
       val sig = new String(encodeBase64(mac.doFinal(bytes)))
       val Ext(ext) = src.name
-      http(destFile << Map.empty[String,String] >- { uploadPath =>
-        http(uploadPath << Map("sig" -> sig) << ("file", src.asFile, contentType(ext)) >- { out =>
+      http(log)(destFile << Map.empty[String,String] >- { uploadPath =>
+        http(log)(uploadPath << Map("sig" -> sig) << ("file", src.asFile, contentType(ext)) >- { out =>
           log.info(out)
         })
       })
@@ -193,7 +193,13 @@ trait Publish extends Write {
 
 object Utils {
   /** Dispatch Http instance for retrieving links and publishing */
-  def http = new Http with FollowAllRedirects
+  def http(sbtlog: sbt.Logger) = new Http with FollowAllRedirects {
+    override lazy val log = new dispatch.Logger {
+      def info(msg: String, items: Any*) { 
+        sbtlog.info(msg.format(items: _*)) 
+      }
+    }
+  }
   /** To do: use upstream when available */
   trait FollowAllRedirects extends Http {
     override val client = new ConfiguredHttpClient with PermissiveRedirect
